@@ -48,8 +48,8 @@ RUN mkdir -p runs checkpoints logs
 # Override with docker run or docker-compose command
 # IMPORTANT: --output-dir points to volume mount at /root/.cache/runs
 CMD ["python", "training/train_hybrid.py", \
-     "--data-dir", "data/training_pairs_mega_331p", \
-     "--output-dir", "/root/.cache/runs/hybrid_production", \
+     "--data-dir", "data/phearun_2483", \
+     "--output-dir", "/root/.cache/runs/phearun_2483_training", \
      "--batch-size", "16", \
      "--epochs", "50", \
      "--lr", "1e-4", \
