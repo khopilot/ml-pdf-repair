@@ -44,7 +44,7 @@ RUN mkdir -p runs checkpoints logs
 # Note: HEALTHCHECK removed - not needed for training jobs
 # Training containers should run until completion, not be health-monitored
 
-# Default command: Run training
+# Default command: Run training with CHECKPOINT RESUMPTION
 # Override with docker run or docker-compose command
 CMD ["python", "training/train_hybrid.py", \
      "--data-dir", "data/training_pairs_mega_331p", \
@@ -60,7 +60,8 @@ CMD ["python", "training/train_hybrid.py", \
      "--refiner-nhead", "4", \
      "--refiner-layers", "3", \
      "--refiner-ffn-dim", "512", \
-     "--early-stopping", "10"]
+     "--early-stopping", "10", \
+     "--resume"]
 
 # Metadata
 LABEL maintainer="Khmer PDF Recovery Team"
