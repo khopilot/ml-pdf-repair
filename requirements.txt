@@ -8,7 +8,7 @@ torchvision>=0.16.0
 torchaudio>=2.1.0
 
 # Transformers & NLP
-transformers>=4.35.0
+transformers==4.35.2
 tokenizers>=0.15.0
 sentencepiece>=0.1.99
 
