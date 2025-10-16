@@ -46,9 +46,10 @@ RUN mkdir -p runs checkpoints logs
 
 # Default command: Run training with CHECKPOINT RESUMPTION
 # Override with docker run or docker-compose command
+# IMPORTANT: --output-dir points to volume mount at /root/.cache/runs
 CMD ["python", "training/train_hybrid.py", \
      "--data-dir", "data/training_pairs_mega_331p", \
-     "--output-dir", "runs/hybrid_production", \
+     "--output-dir", "/root/.cache/runs/hybrid_production", \
      "--batch-size", "16", \
      "--epochs", "50", \
      "--lr", "1e-4", \

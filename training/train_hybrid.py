@@ -440,6 +440,7 @@ def main():
     parser.add_argument('--weight-decay', type=float, default=1e-5, help='Weight decay')
     parser.add_argument('--gradient-clip', type=float, default=1.0, help='Gradient clipping')
     parser.add_argument('--early-stopping', type=int, default=10, help='Early stopping patience')
+    parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
 
     # Output
     parser.add_argument('--output-dir', type=str, required=True, help='Output directory')
@@ -509,7 +510,7 @@ def main():
     )
 
     # Train
-    trainer.train(args.epochs, args.early_stopping)
+    trainer.train(args.epochs, args.early_stopping, resume=args.resume)
 
 
 if __name__ == "__main__":
