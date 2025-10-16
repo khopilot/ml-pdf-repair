@@ -279,11 +279,25 @@ class HybridTrainer:
             self.current_epoch = epoch
             epoch_start_time = time.time()
 
-            # Train
-            train_metrics = self.train_epoch()
+            try:
+                # Train
+                train_metrics = self.train_epoch()
 
-            # Validate
-            val_metrics = self.validate()
+                # Validate
+                val_metrics = self.validate()
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    self.logger.error(f"💥 GPU OUT OF MEMORY at Epoch {epoch + 1}")
+                    self.logger.error(f"Error: {e}")
+                    self.logger.error(f"Try reducing BATCH_SIZE (current: {self.train_loader.batch_size})")
+                    if torch.cuda.is_available():
+                        self.logger.error(f"GPU memory allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+                        self.logger.error(f"GPU memory cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+                        torch.cuda.empty_cache()
+                    raise
+                else:
+                    self.logger.error(f"💥 CUDA Error at Epoch {epoch + 1}: {e}")
+                    raise
 
             # Learning rate scheduling
             if self.scheduler:
@@ -327,6 +341,11 @@ class HybridTrainer:
 
             # Save checkpoint
             self.save_checkpoint(val_metrics, is_best=is_best)
+
+            # Clear GPU cache to prevent OOM
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
 
             # Early stopping
             if patience_counter >= early_stopping_patience:

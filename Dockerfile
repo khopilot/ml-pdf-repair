@@ -41,9 +41,8 @@ RUN chmod +x scripts/*.sh
 # Create directories for outputs
 RUN mkdir -p runs checkpoints logs
 
-# Health check endpoint (if running as service)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import torch; print(torch.cuda.is_available())" || exit 1
+# Note: HEALTHCHECK removed - not needed for training jobs
+# Training containers should run until completion, not be health-monitored
 
 # Default command: Run training
 # Override with docker run or docker-compose command
