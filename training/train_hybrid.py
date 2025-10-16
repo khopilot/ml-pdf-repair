@@ -78,6 +78,14 @@ class HybridTrainer:
         self.train_metrics = MetricCollection()
         self.val_metrics = MetricCollection()
 
+        # Mixed Precision Training (FP16) for CUDA
+        self.use_amp = torch.cuda.is_available()
+        if self.use_amp:
+            self.scaler = torch.cuda.amp.GradScaler()
+            logging.info("🚀 Mixed precision (FP16) training enabled")
+        else:
+            self.scaler = None
+
         # WandB
         self.use_wandb = use_wandb
         if use_wandb:
@@ -125,35 +133,46 @@ class HybridTrainer:
             src_padding_mask = (input_ids == self.vocab.pad_token_id)
             tgt_padding_mask = (target_ids == self.vocab.pad_token_id)
 
-            # Forward pass (LIKE BASELINE!)
-            outputs = self.model(
-                input_ids,           # [batch, src_len]
-                target_ids,          # [batch, tgt_len]
-                src_padding_mask,    # [batch, src_len]
-                tgt_padding_mask     # [batch, tgt_len]
-            )
-            # outputs: [batch, tgt_len, vocab_size]  ✅ ALIGNED WITH TARGET!
+            # Mixed precision training
+            with torch.cuda.amp.autocast(enabled=self.use_amp):
+                # Forward pass (LIKE BASELINE!)
+                outputs = self.model(
+                    input_ids,           # [batch, src_len]
+                    target_ids,          # [batch, tgt_len]
+                    src_padding_mask,    # [batch, src_len]
+                    tgt_padding_mask     # [batch, tgt_len]
+                )
+                # outputs: [batch, tgt_len, vocab_size]  ✅ ALIGNED WITH TARGET!
 
-            # Loss (shift targets by 1 for next-token prediction)
-            # EXACTLY LIKE BASELINE (from TECHNICAL_ANSWERS.md line 203-206)
-            loss = self.criterion(
-                outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
-                target_ids[:, 1:].contiguous().view(-1)
-            )
+                # Loss (shift targets by 1 for next-token prediction)
+                # EXACTLY LIKE BASELINE (from TECHNICAL_ANSWERS.md line 203-206)
+                loss = self.criterion(
+                    outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
+                    target_ids[:, 1:].contiguous().view(-1)
+                )
 
-            # Backward
+            # Backward with gradient scaling
             self.optimizer.zero_grad()
-            loss.backward()
-
-            # Gradient clipping
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
-
-            self.optimizer.step()
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                # Gradient clipping (unscale first)
+                self.scaler.unscale_(self.optimizer)
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
+                self.optimizer.step()
 
             # Tracking
             total_loss += loss.item()
             num_batches += 1
             self.global_step += 1
+
+            # Aggressive GPU cache clearing (every 4 batches)
+            if num_batches % 4 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             # Update progress bar
             progress_bar.set_postfix({'loss': f'{loss.item():.3f}'})
@@ -262,7 +281,39 @@ class HybridTrainer:
         if (self.current_epoch + 1) % 10 == 0:
             torch.save(checkpoint, self.output_dir / f'checkpoint_epoch_{self.current_epoch + 1}.pt')
 
-    def train(self, num_epochs: int, early_stopping_patience: int = 10):
+    def load_checkpoint(self, checkpoint_path: Path) -> int:
+        """Load checkpoint and return starting epoch."""
+        if not checkpoint_path.exists():
+            self.logger.info("No checkpoint found, starting from scratch")
+            return 0
+
+        try:
+            self.logger.info(f"📂 Loading checkpoint from {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+
+            # Restore model state
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            if self.scheduler and 'scheduler_state_dict' in checkpoint:
+                self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+            # Restore training state
+            start_epoch = checkpoint['epoch'] + 1  # Start from NEXT epoch
+            self.global_step = checkpoint.get('global_step', 0)
+            self.best_val_cer = checkpoint['metrics'].get('cer', float('inf'))
+
+            self.logger.info(f"✅ Resumed from epoch {checkpoint['epoch']}")
+            self.logger.info(f"   Best CER so far: {self.best_val_cer:.4f}")
+            self.logger.info(f"   Global step: {self.global_step}")
+
+            return start_epoch
+        except Exception as e:
+            self.logger.error(f"Failed to load checkpoint: {e}")
+            self.logger.info("Starting from scratch")
+            return 0
+
+    def train(self, num_epochs: int, early_stopping_patience: int = 10, resume: bool = True):
         """Main training loop."""
         self.logger.info(f"Starting training for {num_epochs} epochs")
         self.logger.info(f"Device: {self.device}")
@@ -273,9 +324,17 @@ class HybridTrainer:
         self.logger.info(f"  Atomic mapper: {sum(p.numel() for p in atomic_params):,}")
         self.logger.info(f"  Context refiner: {sum(p.numel() for p in refiner_params):,}")
 
+        # Resume from checkpoint if exists
+        start_epoch = 0
+        if resume:
+            checkpoint_path = self.output_dir / 'latest_checkpoint.pt'
+            start_epoch = self.load_checkpoint(checkpoint_path)
+            if start_epoch > 0:
+                self.logger.info(f"🔄 Resuming training from epoch {start_epoch}")
+
         patience_counter = 0
 
-        for epoch in range(num_epochs):
+        for epoch in range(start_epoch, num_epochs):
             self.current_epoch = epoch
             epoch_start_time = time.time()
 
