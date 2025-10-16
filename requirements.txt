@@ -1,0 +1,57 @@
+# ML-Powered Khmer PDF Corruption Correction
+# Production-Grade Deep Learning Dependencies
+# Python 3.10+
+
+# Core Deep Learning
+torch>=2.1.0
+torchvision>=0.16.0
+torchaudio>=2.1.0
+
+# Transformers & NLP
+transformers>=4.35.0
+tokenizers>=0.15.0
+sentencepiece>=0.1.99
+
+# Training Infrastructure
+accelerate>=0.25.0
+datasets>=2.15.0
+wandb>=0.16.0
+tensorboard>=2.15.0
+
+# Metrics & Evaluation
+jiwer>=3.0.0
+seqeval>=1.2.2
+torchmetrics>=1.2.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.1.0
+regex>=2023.10.0
+
+# Utilities
+pyyaml>=6.0.1
+tqdm>=4.66.0
+rich>=13.7.0
+
+# Production Deployment
+onnx>=1.15.0
+onnxruntime>=1.16.0
+
+# Development Tools
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.11.0
+mypy>=1.7.0
+flake8>=6.1.0
+
+# Jupyter for Research
+jupyter>=1.0.0
+ipywidgets>=8.1.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Parent Pipeline Integration
+pdfminer.six>=20221105
+PyMuPDF>=1.23.0
+pikepdf>=8.0.0
+Pillow>=10.0.0

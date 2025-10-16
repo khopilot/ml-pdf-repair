@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Training outputs
+runs/
+checkpoints/
+*.log
+*.pt.bak
+
+# Development files
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (dev only)
+RESUMPTION_REPORT.md
+TECHNICAL_ANSWERS.md
+HYBRID_ARCHITECTURE_REPORT.md
+LSTM_BASELINE_ANALYSIS.md
+ML_IMPLEMENTATION_COMPLETE.md
+KHMER_TOKENIZER_V7_INTEGRATION.md
+SETUP_M4_PRO.md
+START_HERE_M4_PRO.md
+QUICKSTART_ML.md
+
+# Backups
+context_refiner_old.py
+*.bak
+*.old
+
+# Analysis scripts
+analysis/
+
+# Test files
+tests/
+*.test.py
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large datasets (optional - uncomment if not needed)
+# data/training_pairs_*/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/
+
+# Cache
+.cache/
+*.cache

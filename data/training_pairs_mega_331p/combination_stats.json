@@ -1,0 +1,21 @@
+{
+  "total_pairs": 328,
+  "duplicates_removed": 3,
+  "by_source": {
+    "training_pairs_gold_standard_200p": {
+      "train": 161,
+      "val": 19,
+      "test": 19
+    },
+    "training_pairs_khmer_full_5000p": {
+      "train": 37,
+      "val": 2,
+      "test": 19
+    },
+    "training_pairs_forensic_freq_final": {
+      "train": 59,
+      "val": 7,
+      "test": 8
+    }
+  }
+}

@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # Main training service with GPU support
+  train:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: khmer-ml-correction:latest
+    container_name: khmer_ml_train
+
+    # GPU configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Environment variables
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - TORCH_HOME=/app/.cache/torch
+
+    # Volume mounts for persistence
+    volumes:
+      - ./data:/app/data:ro                    # Read-only dataset
+      - ./runs:/app/runs                        # Training outputs
+      - ./checkpoints:/app/checkpoints          # Model checkpoints
+      - ./logs:/app/logs                        # Training logs
+      - torch_cache:/app/.cache/torch           # PyTorch cache
+
+    # Override default command for custom training
+    command: >
+      python training/train_hybrid.py
+      --data-dir data/training_pairs_mega_331p
+      --output-dir runs/hybrid_docker
+      --batch-size 16
+      --epochs 50
+      --lr 1e-4
+      --device cuda
+      --atomic-embed-dim 128
+      --atomic-hidden-dim 256
+      --atomic-layers 3
+      --refiner-d-model 128
+      --refiner-nhead 4
+      --refiner-layers 3
+      --refiner-ffn-dim 512
+      --early-stopping 10
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Baseline transformer training (for comparison)
+  train-baseline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: khmer-ml-correction:latest
+    container_name: khmer_ml_baseline
+    profiles: ["baseline"]  # Only start with --profile baseline
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+
+    volumes:
+      - ./data:/app/data:ro
+      - ./runs:/app/runs
+      - ./checkpoints:/app/checkpoints
+      - ./logs:/app/logs
+      - torch_cache:/app/.cache/torch
+
+    command: >
+      python training/train.py
+      --data-dir data/training_pairs_mega_331p
+      --output-dir runs/baseline_docker
+      --batch-size 16
+      --epochs 50
+      --lr 1e-4
+      --device cuda
+
+    restart: unless-stopped
+
+volumes:
+  torch_cache:
+    driver: local
+
+# Usage examples:
+#
+# 1. Build the image:
+#    docker-compose build
+#
+# 2. Run hybrid training:
+#    docker-compose up train
+#
+# 3. Run in background:
+#    docker-compose up -d train
+#
+# 4. View logs:
+#    docker-compose logs -f train
+#
+# 5. Run baseline for comparison:
+#    docker-compose --profile baseline up train-baseline
+#
+# 6. Stop training:
+#    docker-compose down
+#
+# 7. Interactive shell for debugging:
+#    docker-compose run --rm train bash

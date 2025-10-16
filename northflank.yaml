@@ -1,0 +1,232 @@
+# Northflank Deployment Configuration
+# Khmer PDF ML Correction - GPU Training Service
+# Deploy with: northflank create --file northflank.yaml
+
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  name: khmer-ml-training
+  project: khmer-pdf-recovery
+  description: "Hybrid ML model training for Khmer PDF text correction"
+  labels:
+    app: khmer-ml
+    component: training
+    gpu: required
+
+spec:
+  # Container configuration
+  build:
+    type: dockerfile
+    dockerfile: Dockerfile
+    context: .
+    args: []
+
+  image:
+    repository: khmer-ml-correction
+    tag: latest
+
+  # GPU instance selection
+  # T4: nvidia-tesla-t4 (16GB VRAM) - Recommended for development
+  # A10G: nvidia-a10g (24GB VRAM) - Recommended for production
+  # A100: nvidia-a100-40gb (40GB VRAM) - For large-scale training
+  compute:
+    instance: nvidia-tesla-t4
+    cpu: 4
+    memory: 16Gi
+    gpu:
+      count: 1
+      type: nvidia-tesla-t4
+
+  # Scaling configuration
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+  # Storage volumes
+  volumes:
+    - name: training-data
+      type: persistent
+      size: 10Gi
+      mountPath: /app/data
+
+    - name: model-checkpoints
+      type: persistent
+      size: 50Gi
+      mountPath: /app/runs
+
+    - name: cache
+      type: ephemeral
+      size: 20Gi
+      mountPath: /app/.cache
+
+  # Environment variables
+  environment:
+    - name: CUDA_VISIBLE_DEVICES
+      value: "0"
+
+    - name: PYTHONUNBUFFERED
+      value: "1"
+
+    - name: TORCH_HOME
+      value: "/app/.cache/torch"
+
+    # Training hyperparameters (can override at runtime)
+    - name: BATCH_SIZE
+      value: "16"
+
+    - name: LEARNING_RATE
+      value: "1e-4"
+
+    - name: EPOCHS
+      value: "50"
+
+    - name: DEVICE
+      value: "cuda"
+
+    # Optional: WandB integration
+    # - name: WANDB_API_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: wandb-credentials
+    #       key: api-key
+    #
+    # - name: WANDB_PROJECT
+    #   value: "khmer-pdf-correction"
+
+  # Command override (uses Dockerfile CMD by default)
+  # Uncomment to customize training parameters
+  # command:
+  #   - python
+  #   - training/train_hybrid.py
+  #   - --data-dir
+  #   - data/training_pairs_mega_331p
+  #   - --output-dir
+  #   - runs/hybrid_northflank
+  #   - --batch-size
+  #   - "$(BATCH_SIZE)"
+  #   - --lr
+  #   - "$(LEARNING_RATE)"
+  #   - --epochs
+  #   - "$(EPOCHS)"
+  #   - --device
+  #   - "$(DEVICE)"
+
+  # Health checks
+  health:
+    enabled: true
+    path: /health
+    port: 8000
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+
+  # Logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 100m
+      max-file: "10"
+
+  # Restart policy
+  restartPolicy: OnFailure
+
+  # Resource limits and requests
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+      cpu: "4"
+      memory: 16Gi
+    requests:
+      nvidia.com/gpu: 1
+      cpu: "2"
+      memory: 8Gi
+
+# Additional services (optional)
+
+---
+# TensorBoard monitoring service
+apiVersion: v1
+kind: Service
+metadata:
+  name: khmer-ml-tensorboard
+  project: khmer-pdf-recovery
+
+spec:
+  type: web
+  image:
+    repository: tensorflow/tensorflow
+    tag: latest-gpu
+
+  compute:
+    instance: small
+    cpu: 1
+    memory: 2Gi
+
+  command:
+    - tensorboard
+    - --logdir
+    - /app/runs
+    - --host
+    - 0.0.0.0
+    - --port
+    - "6006"
+
+  volumes:
+    - name: model-checkpoints
+      type: persistent
+      mountPath: /app/runs
+      readOnly: true
+
+  ports:
+    - name: tensorboard
+      port: 6006
+      protocol: TCP
+      public: true
+
+  health:
+    enabled: true
+    path: /
+    port: 6006
+
+---
+# Deployment notes and instructions
+#
+# 1. Prerequisites:
+#    - Northflank account with GPU quota enabled
+#    - northflank CLI installed: npm install -g @northflank/cli
+#    - Authenticated: northflank login
+#
+# 2. Initial deployment:
+#    northflank create deployment --file northflank.yaml
+#
+# 3. Update deployment:
+#    northflank update deployment khmer-ml-training --file northflank.yaml
+#
+# 4. Monitor training:
+#    northflank logs khmer-ml-training --follow
+#
+# 5. Access TensorBoard:
+#    northflank services list
+#    # Copy the public URL for khmer-ml-tensorboard
+#
+# 6. Scale GPU instance:
+#    northflank update deployment khmer-ml-training \
+#      --instance nvidia-a10g \
+#      --env BATCH_SIZE=32
+#
+# 7. Cost estimation (as of 2025):
+#    - T4 (16GB): ~$0.35/hour
+#    - A10G (24GB): ~$1.00/hour
+#    - A100 (40GB): ~$3.00/hour
+#    - Storage: ~$0.10/GB/month
+#
+# 8. Training time estimates:
+#    - T4: 2-3 hours for 50 epochs
+#    - A10G: 1-2 hours for 50 epochs
+#    - A100: <1 hour for 50 epochs
+#
+# 9. Download trained model:
+#    northflank download khmer-ml-training:/app/runs/hybrid_northflank/best_model.pt ./
+#
+# 10. Clean up:
+#     northflank delete deployment khmer-ml-training

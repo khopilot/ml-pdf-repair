@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Training outputs (DON'T COMMIT LARGE FILES)
+runs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (large files)
+data/pdfs_all/
+data/training_pairs_gold_standard_200p/
+data/training_pairs_khmer_full_5000p/
+data/training_pairs_khmer_relaxed_500p/
+data/training_pairs_forensic_*/
+data/training_pairs_combined_257p/
+data/training_pairs_true_gold_test_100p/
+
+# Keep only the production dataset
+!data/training_pairs_mega_331p/
+
+# Development docs (not needed in GitHub)
+RESUMPTION_REPORT.md
+TECHNICAL_ANSWERS.md
+HYBRID_ARCHITECTURE_REPORT.md
+LSTM_BASELINE_ANALYSIS.md
+ML_IMPLEMENTATION_COMPLETE.md
+KHMER_TOKENIZER_V7_INTEGRATION.md
+SETUP_M4_PRO.md
+START_HERE_M4_PRO.md
+QUICKSTART_ML.md
+BASELINE_TRANSFORMER_TRAINING_REPORT.md
+
+# Backup files
+*.bak
+*.old
+context_refiner_old.py
+
+# Cache
+.cache/
+*.cache
+
+# Analysis scripts (optional)
+analysis/
+
+# Environment files with secrets
+.env
+.env.local
+
+# But keep the Northflank templates
+!.env.northflank
+!.env.northflank.simple
