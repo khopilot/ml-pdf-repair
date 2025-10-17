@@ -131,24 +131,34 @@ class HybridTrainer:
 
             # Create padding masks
             src_padding_mask = (input_ids == self.vocab.pad_token_id)
-            tgt_padding_mask = (target_ids == self.vocab.pad_token_id)
+
+            # CRITICAL FIX: Prepare decoder input (shifted right with BOS)
+            # tgt_out = ground truth to predict: [y1, y2, y3, ..., yn]
+            # tgt_in  = decoder input: [BOS, y1, y2, ..., yn-1]
+            BOS = self.vocab.start_token_id
+            batch_size, tgt_len = target_ids.size()
+            bos_col = torch.full((batch_size, 1), BOS, dtype=target_ids.dtype, device=target_ids.device)
+            tgt_in = torch.cat([bos_col, target_ids[:, :-1]], dim=1)  # Shift right
+            tgt_out = target_ids  # Ground truth
+
+            tgt_padding_mask = (tgt_in == self.vocab.pad_token_id)
 
             # Mixed precision training (BF16 for A100)
             with torch.cuda.amp.autocast(enabled=self.use_amp, dtype=torch.bfloat16):
-                # Forward pass (LIKE BASELINE!)
+                # Forward pass with CORRECT target shift
                 outputs = self.model(
                     input_ids,           # [batch, src_len]
-                    target_ids,          # [batch, tgt_len]
+                    tgt_in,              # [batch, tgt_len] - decoder input with BOS
                     src_padding_mask,    # [batch, src_len]
                     tgt_padding_mask     # [batch, tgt_len]
                 )
-                # outputs: [batch, tgt_len, vocab_size]  ✅ ALIGNED WITH TARGET!
+                # outputs: [batch, tgt_len, vocab_size]
 
-                # Loss (shift targets by 1 for next-token prediction)
-                # EXACTLY LIKE BASELINE (from TECHNICAL_ANSWERS.md line 203-206)
+                # Loss: predict tgt_out from model outputs
+                # No shifting needed - already aligned!
                 loss = self.criterion(
-                    outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
-                    target_ids[:, 1:].contiguous().view(-1)
+                    outputs.contiguous().view(-1, outputs.size(-1)),
+                    tgt_out.contiguous().view(-1)
                 )
 
             # Backward pass (BF16 doesn't need gradient scaling)
@@ -199,29 +209,37 @@ class HybridTrainer:
             target_lengths = batch['target_lengths']
 
             src_padding_mask = (input_ids == self.vocab.pad_token_id)
-            tgt_padding_mask = (target_ids == self.vocab.pad_token_id)
+
+            # CRITICAL FIX: Match training - use shifted decoder input
+            BOS = self.vocab.start_token_id
+            batch_size, tgt_len = target_ids.size()
+            bos_col = torch.full((batch_size, 1), BOS, dtype=target_ids.dtype, device=target_ids.device)
+            tgt_in = torch.cat([bos_col, target_ids[:, :-1]], dim=1)
+            tgt_out = target_ids
+
+            tgt_padding_mask = (tgt_in == self.vocab.pad_token_id)
 
             # Mixed precision validation (BF16 for A100)
             with torch.cuda.amp.autocast(enabled=self.use_amp, dtype=torch.bfloat16):
-                # Forward pass (LIKE BASELINE!)
+                # Forward pass matching training
                 outputs = self.model(
                     input_ids,
-                    target_ids,
+                    tgt_in,           # Shifted input
                     src_padding_mask,
                     tgt_padding_mask
                 )
                 # outputs: [batch, tgt_len, vocab_size]
 
-                # Loss (shift targets by 1)
+                # Loss: predict tgt_out
                 loss = self.criterion(
-                    outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
-                    target_ids[:, 1:].contiguous().view(-1)
+                    outputs.contiguous().view(-1, outputs.size(-1)),
+                    tgt_out.contiguous().view(-1)
                 )
 
             total_loss += loss.item()
             num_batches += 1
 
-            # Decode predictions for metrics
+            # Decode predictions for metrics (from teacher-forced output)
             predictions = outputs.argmax(dim=-1)
 
             # Convert to text
@@ -230,7 +248,7 @@ class HybridTrainer:
 
             for i in range(predictions.size(0)):
                 pred_ids = predictions[i, :target_lengths[i]].tolist()
-                ref_ids = target_ids[i, 1:target_lengths[i]].tolist()
+                ref_ids = target_ids[i, :target_lengths[i]].tolist()
 
                 pred_text = self.vocab.decode(pred_ids, skip_special_tokens=True)
                 ref_text = self.vocab.decode(ref_ids, skip_special_tokens=True)
