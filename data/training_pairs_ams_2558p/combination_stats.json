@@ -1,0 +1,14 @@
+{
+  "total_pairs": 2554,
+  "train_size": 2043,
+  "val_size": 255,
+  "test_size": 256,
+  "errors": 0,
+  "skipped": 4,
+  "length_ratio_stats": {
+    "mean": 0.972,
+    "min": 0.841,
+    "max": 1.496
+  },
+  "source": "paired_3k+"
+}

@@ -1,0 +1,28 @@
+{
+  "dataset": "training_pairs_ams_2558p",
+  "total_pairs": 2554,
+  "valid_pairs": 2554,
+  "invalid_pairs": 0,
+  "truncated_pairs": 0,
+  "truncation_rate": "0.0%",
+  "splits": {
+    "train": 2043,
+    "val": 255,
+    "test": 256
+  },
+  "noise_patterns": {
+    "char_split": 2549,
+    "coeng_error": 2542,
+    "space_insertion": 2492,
+    "char_substitution": 2445,
+    "mark_reorder": 791,
+    "latin_noise": 16,
+    "pua_chars": 1
+  },
+  "fonts": {},
+  "extraction_methods": {
+    "pypdf2": 2554
+  },
+  "errors": [],
+  "warnings": []
+}

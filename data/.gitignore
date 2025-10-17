@@ -1,4 +1,4 @@
-# Exclude old datasets from git (too large, superseded by mega_3279p)
+# Exclude old datasets from git (too large or superseded)
 training_pairs_combined_257p/
 training_pairs_combined_257p_enhanced/
 training_pairs_gold_standard_200p/
@@ -8,7 +8,8 @@ training_pairs_khmer_*/
 training_pairs_mega_331p/
 training_pairs_mega_331p_enhanced/
 training_pairs_mega_331p_filtered/
-training_pairs_ams_2558p/
+# training_pairs_ams_2558p/ - NOW INCLUDED (production dataset)
+training_pairs_mega_3279p/
 paired_3k+/
 phearun-data/
 
