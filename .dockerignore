@@ -50,7 +50,7 @@ tests/
 .DS_Store
 Thumbs.db
 
-# Old datasets (exclude from Docker - only keep mega_3279p)
+# Old datasets (exclude from Docker - only keep ams_2558p for production)
 data/training_pairs_combined_257p/
 data/training_pairs_combined_257p_enhanced/
 data/training_pairs_gold_standard_200p/
@@ -60,7 +60,8 @@ data/training_pairs_khmer_*/
 data/training_pairs_mega_331p/
 data/training_pairs_mega_331p_enhanced/
 data/training_pairs_mega_331p_filtered/
-data/training_pairs_ams_2558p/
+data/training_pairs_mega_3279p/
+# data/training_pairs_ams_2558p/ - NOW INCLUDED in Docker builds (production dataset)
 data/paired_3k+/
 data/phearun-data/
 
