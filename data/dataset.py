@@ -167,7 +167,7 @@ class KhmerCorrectionDataset(Dataset):
                  json_file: Path,
                  vocab: KhmerCharVocab,
                  max_length: int = 1024,
-                 filter_quality: bool = True,
+                 filter_quality: bool = False,
                  max_cer: float = 0.40,
                  min_khmer_ratio: float = 0.95):
         """

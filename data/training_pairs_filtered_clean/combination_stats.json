@@ -1,0 +1,16 @@
+{
+  "total_pairs": 2753,
+  "train_size": 2202,
+  "val_size": 275,
+  "test_size": 276,
+  "deduplication": "none",
+  "note": "All pairs from all sources included without filtering",
+  "source_counts": {
+    "training_pairs_ams_2558p": 2554,
+    "training_pairs_gold_standard_200p_enhanced": 199
+  },
+  "sources": [
+    "/Users/nicolas.consultant/Downloads/pdf_ocr/ml_correction/data/training_pairs_ams_2558p",
+    "/Users/nicolas.consultant/Downloads/pdf_ocr/ml_correction/data/training_pairs_gold_standard_200p_enhanced"
+  ]
+}

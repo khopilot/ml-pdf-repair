@@ -1,0 +1,47 @@
+{
+  "input_dir": "data/training_pairs_unfiltered_full",
+  "output_dir": "data/training_pairs_filtered_clean",
+  "filters": {
+    "max_cer": 0.4,
+    "min_khmer_ratio": 0.85
+  },
+  "statistics": {
+    "total": 2753,
+    "kept": 2615,
+    "rejected_cer": 0,
+    "rejected_khmer": 138,
+    "rejected_missing_metadata": 0
+  },
+  "split_details": {
+    "train": {
+      "initial": 2202,
+      "kept": 2098,
+      "kept_pct": 95.2770208900999,
+      "rejected": {
+        "cer": 0,
+        "khmer": 104,
+        "missing": 0
+      }
+    },
+    "val": {
+      "initial": 275,
+      "kept": 261,
+      "kept_pct": 94.9090909090909,
+      "rejected": {
+        "cer": 0,
+        "khmer": 14,
+        "missing": 0
+      }
+    },
+    "test": {
+      "initial": 276,
+      "kept": 256,
+      "kept_pct": 92.7536231884058,
+      "rejected": {
+        "cer": 0,
+        "khmer": 20,
+        "missing": 0
+      }
+    }
+  }
+}

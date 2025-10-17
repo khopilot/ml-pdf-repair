@@ -495,6 +495,7 @@ class HybridTrainer:
                 f"Train Loss: {train_metrics['loss']:.4f} | "
                 f"Val Loss: {val_metrics['loss']:.4f} | "
                 f"Val CER: {val_metrics['cer']:.4f} | "
+                f"Val CER (AR): {val_metrics['cer_autoregressive']:.4f} | "
                 f"Val Char Acc: {val_metrics['character_accuracy']:.4f} | "
                 f"Time: {epoch_time:.1f}s"
             )
@@ -506,6 +507,7 @@ class HybridTrainer:
                     'train/epoch_loss': train_metrics['loss'],
                     'val/loss': val_metrics['loss'],
                     'val/cer': val_metrics['cer'],
+                    'val/cer_autoregressive': val_metrics['cer_autoregressive'],
                     'val/char_accuracy': val_metrics['character_accuracy'],
                     'val/word_accuracy': val_metrics['word_accuracy'],
                     'val/cluster_validity': val_metrics['cluster_validity'],

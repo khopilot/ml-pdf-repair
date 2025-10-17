@@ -1,0 +1,31 @@
+{
+  "dataset": "data/training_pairs_unfiltered_full",
+  "total_pairs": 2753,
+  "valid_pairs": 2753,
+  "invalid_pairs": 0,
+  "truncated_pairs": 1,
+  "truncation_rate": "0.0%",
+  "splits": {
+    "train": 2202,
+    "val": 275,
+    "test": 276
+  },
+  "noise_patterns": {
+    "char_split": 2748,
+    "coeng_error": 2739,
+    "space_insertion": 2670,
+    "char_substitution": 2459,
+    "mark_reorder": 972,
+    "newline_noise": 199,
+    "latin_noise": 19,
+    "space_deletion": 7,
+    "pua_chars": 1
+  },
+  "fonts": {},
+  "extraction_methods": {
+    "pypdf2": 2554,
+    "pdfminer": 199
+  },
+  "errors": [],
+  "warnings": []
+}

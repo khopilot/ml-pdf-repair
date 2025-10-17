@@ -142,9 +142,10 @@ ENTRYPOINT_EOF
 RUN chmod +x /app/entrypoint.sh
 
 # Default training parameters (override via environment variables or Northflank UI)
-# OPTIMIZED: Unfiltered dataset (2,753 pairs), 4x larger model, batch=32, BF16 precision
-ENV DATA_DIR="data/training_pairs_unfiltered_full" \
-    OUTPUT_DIR="/root/.cache/runs/unfiltered_full_training" \
+# CRITICAL FIX: Use pre-filtered dataset to avoid 6-hour hang
+# Filtered dataset (2,615 pairs), 4x larger model, batch=32, BF16 precision
+ENV DATA_DIR="data/training_pairs_filtered_clean" \
+    OUTPUT_DIR="/root/.cache/runs/filtered_clean_training" \
     BATCH_SIZE="32" \
     EPOCHS="50" \
     LEARNING_RATE="1e-4" \
