@@ -78,13 +78,13 @@ class HybridTrainer:
         self.train_metrics = MetricCollection()
         self.val_metrics = MetricCollection()
 
-        # Mixed Precision Training (FP16) for CUDA
+        # Mixed Precision Training (BF16) for A100 CUDA
+        # BF16 has better stability than FP16 and doesn't need gradient scaling
         self.use_amp = torch.cuda.is_available()
         if self.use_amp:
-            self.scaler = torch.cuda.amp.GradScaler()
-            logging.info("🚀 Mixed precision (FP16) training enabled")
+            logging.info("🚀 Mixed precision (BF16) training enabled for A100")
         else:
-            self.scaler = None
+            logging.info("⚠️ Running in FP32 mode (no CUDA)")
 
         # WandB
         self.use_wandb = use_wandb
@@ -133,8 +133,8 @@ class HybridTrainer:
             src_padding_mask = (input_ids == self.vocab.pad_token_id)
             tgt_padding_mask = (target_ids == self.vocab.pad_token_id)
 
-            # Mixed precision training
-            with torch.cuda.amp.autocast(enabled=self.use_amp):
+            # Mixed precision training (BF16 for A100)
+            with torch.cuda.amp.autocast(enabled=self.use_amp, dtype=torch.bfloat16):
                 # Forward pass (LIKE BASELINE!)
                 outputs = self.model(
                     input_ids,           # [batch, src_len]
@@ -151,19 +151,11 @@ class HybridTrainer:
                     target_ids[:, 1:].contiguous().view(-1)
                 )
 
-            # Backward with gradient scaling
+            # Backward pass (BF16 doesn't need gradient scaling)
             self.optimizer.zero_grad()
-            if self.use_amp:
-                self.scaler.scale(loss).backward()
-                # Gradient clipping (unscale first)
-                self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                loss.backward()
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
-                self.optimizer.step()
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
+            self.optimizer.step()
 
             # Tracking
             total_loss += loss.item()
@@ -209,20 +201,22 @@ class HybridTrainer:
             src_padding_mask = (input_ids == self.vocab.pad_token_id)
             tgt_padding_mask = (target_ids == self.vocab.pad_token_id)
 
-            # Forward pass (LIKE BASELINE!)
-            outputs = self.model(
-                input_ids,
-                target_ids,
-                src_padding_mask,
-                tgt_padding_mask
-            )
-            # outputs: [batch, tgt_len, vocab_size]
+            # Mixed precision validation (BF16 for A100)
+            with torch.cuda.amp.autocast(enabled=self.use_amp, dtype=torch.bfloat16):
+                # Forward pass (LIKE BASELINE!)
+                outputs = self.model(
+                    input_ids,
+                    target_ids,
+                    src_padding_mask,
+                    tgt_padding_mask
+                )
+                # outputs: [batch, tgt_len, vocab_size]
 
-            # Loss (shift targets by 1)
-            loss = self.criterion(
-                outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
-                target_ids[:, 1:].contiguous().view(-1)
-            )
+                # Loss (shift targets by 1)
+                loss = self.criterion(
+                    outputs[:, :-1, :].contiguous().view(-1, outputs.size(-1)),
+                    target_ids[:, 1:].contiguous().view(-1)
+                )
 
             total_loss += loss.item()
             num_batches += 1

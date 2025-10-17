@@ -66,6 +66,9 @@ echo "   Batch size: $BATCH_SIZE"
 echo "   Auto-serve models: $AUTO_SERVE_MODELS"
 echo ""
 
+# Create lock file for health check
+touch /tmp/training.lock
+
 # Run training
 python training/train_hybrid.py \
     --data-dir "$DATA_DIR" \
@@ -85,6 +88,9 @@ python training/train_hybrid.py \
     --resume
 
 TRAINING_EXIT_CODE=$?
+
+# Remove training lock file
+rm -f /tmp/training.lock
 
 echo ""
 echo "============================================"
@@ -136,28 +142,28 @@ ENTRYPOINT_EOF
 RUN chmod +x /app/entrypoint.sh
 
 # Default training parameters (override via environment variables or Northflank UI)
-# UPDATED: Now using ams_2558p dataset (2,554 pairs from paired_3k+ PDF-TXT conversions)
-ENV DATA_DIR="data/training_pairs_ams_2558p" \
-    OUTPUT_DIR="/root/.cache/runs/ams_2558p_training" \
-    BATCH_SIZE="16" \
+# OPTIMIZED: Unfiltered dataset (2,753 pairs), 4x larger model, batch=32, BF16 precision
+ENV DATA_DIR="data/training_pairs_unfiltered_full" \
+    OUTPUT_DIR="/root/.cache/runs/unfiltered_full_training" \
+    BATCH_SIZE="32" \
     EPOCHS="50" \
     LEARNING_RATE="1e-4" \
     DEVICE="cuda" \
-    ATOMIC_EMBED_DIM="128" \
-    ATOMIC_HIDDEN_DIM="256" \
-    ATOMIC_LAYERS="3" \
-    REFINER_D_MODEL="128" \
-    REFINER_NHEAD="4" \
-    REFINER_LAYERS="3" \
-    REFINER_FFN_DIM="512" \
+    ATOMIC_EMBED_DIM="256" \
+    ATOMIC_HIDDEN_DIM="512" \
+    ATOMIC_LAYERS="4" \
+    REFINER_D_MODEL="256" \
+    REFINER_NHEAD="8" \
+    REFINER_LAYERS="4" \
+    REFINER_FFN_DIM="1024" \
     EARLY_STOPPING="10"
 
 # Expose port for model download server
 EXPOSE 8000
 
-# Health check: Verify training is running or server is up
-HEALTHCHECK --interval=60s --timeout=10s --start-period=120s --retries=3 \
-  CMD curl -f http://localhost:${SERVE_PORT}/ || pgrep -f "train_hybrid.py" || exit 1
+# Health check: Verify training is running or server is up (FIXED: more robust)
+HEALTHCHECK --interval=60s --timeout=10s --start-period=300s --retries=5 \
+  CMD curl -f http://localhost:${SERVE_PORT}/ || [ -f /tmp/training.lock ] || pgrep -f "python.*train_hybrid" || exit 1
 
 # Execute entrypoint
 CMD ["/app/entrypoint.sh"]
