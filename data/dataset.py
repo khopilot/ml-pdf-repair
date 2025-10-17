@@ -166,14 +166,20 @@ class KhmerCorrectionDataset(Dataset):
     def __init__(self,
                  json_file: Path,
                  vocab: KhmerCharVocab,
-                 max_length: int = 1024):
+                 max_length: int = 1024,
+                 filter_quality: bool = True,
+                 max_cer: float = 0.40,
+                 min_khmer_ratio: float = 0.95):
         """
-        Initialize dataset.
+        Initialize dataset with quality filtering.
 
         Args:
             json_file: Path to JSON file with training pairs
             vocab: Character vocabulary
             max_length: Maximum sequence length
+            filter_quality: Enable data quality filtering
+            max_cer: Maximum allowed CER for a pair (default: 0.40 = 40%)
+            min_khmer_ratio: Minimum Khmer character ratio in target (default: 0.95)
         """
         self.vocab = vocab
         self.max_length = max_length
@@ -182,6 +188,8 @@ class KhmerCorrectionDataset(Dataset):
         with open(json_file, 'r', encoding='utf-8') as f:
             self.data = json.load(f)
 
+        initial_count = len(self.data)
+
         # Filter by length (handle both formats)
         self.data = [
             pair for pair in self.data
@@ -189,7 +197,74 @@ class KhmerCorrectionDataset(Dataset):
             and len(pair.get('target', pair.get('target_text', ''))) <= max_length
         ]
 
-        print(f"Loaded {len(self.data)} training pairs from {json_file}")
+        length_filtered = initial_count - len(self.data)
+
+        # QUALITY FILTERING: Remove garbage pairs
+        if filter_quality:
+            filtered_data = []
+            quality_rejected = 0
+
+            for pair in self.data:
+                input_text = pair.get('input', pair.get('input_text', ''))
+                target_text = pair.get('target', pair.get('target_text', ''))
+
+                # Calculate CER if available in metadata
+                cer = pair.get('cer', pair.get('initial_cer', None))
+                if cer is None:
+                    # Compute CER on-the-fly if not provided
+                    cer = self._compute_cer(input_text, target_text)
+
+                # Calculate Khmer ratio in target
+                khmer_ratio = self._khmer_ratio(target_text)
+
+                # Quality gates
+                if cer <= max_cer and khmer_ratio >= min_khmer_ratio:
+                    filtered_data.append(pair)
+                else:
+                    quality_rejected += 1
+
+            self.data = filtered_data
+            print(f"📊 Quality filtering: rejected {quality_rejected}/{initial_count} pairs")
+            print(f"   - CER > {max_cer}: filtering high-noise pairs")
+            print(f"   - Khmer ratio < {min_khmer_ratio}: filtering non-Khmer text")
+
+        print(f"✅ Loaded {len(self.data)} training pairs from {json_file}")
+        if length_filtered > 0:
+            print(f"   (filtered {length_filtered} for length > {max_length})")
+
+    @staticmethod
+    def _compute_cer(text1: str, text2: str) -> float:
+        """Compute Character Error Rate between two texts."""
+        if len(text2) == 0:
+            return 1.0 if len(text1) > 0 else 0.0
+
+        # Simple Levenshtein distance (character-level)
+        import numpy as np
+        m, n = len(text1), len(text2)
+        dp = np.zeros((m + 1, n + 1))
+
+        for i in range(m + 1):
+            dp[i][0] = i
+        for j in range(n + 1):
+            dp[0][j] = j
+
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if text1[i-1] == text2[j-1]:
+                    dp[i][j] = dp[i-1][j-1]
+                else:
+                    dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+
+        return float(dp[m][n]) / len(text2)
+
+    @staticmethod
+    def _khmer_ratio(text: str) -> float:
+        """Calculate ratio of Khmer characters in text."""
+        if len(text) == 0:
+            return 0.0
+
+        khmer_count = sum(1 for char in text if '\u1780' <= char <= '\u17FF')
+        return khmer_count / len(text)
 
     def __len__(self) -> int:
         return len(self.data)

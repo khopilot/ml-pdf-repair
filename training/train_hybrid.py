@@ -123,6 +123,10 @@ class HybridTrainer:
 
         progress_bar = tqdm(self.train_loader, desc=f"Epoch {self.current_epoch + 1} [Train]")
 
+        # SCHEDULED SAMPLING: Compute teacher forcing ratio
+        # Linear decay from 1.0 → 0.0 over 30 epochs to fix exposure bias
+        teacher_forcing_ratio = max(0.0, 1.0 - (self.current_epoch / 30.0))
+
         for batch in progress_bar:
             input_ids = batch['input_ids'].to(self.device)
             target_ids = batch['target_ids'].to(self.device)
@@ -138,24 +142,45 @@ class HybridTrainer:
             BOS = self.vocab.start_token_id
             batch_size, tgt_len = target_ids.size()
             bos_col = torch.full((batch_size, 1), BOS, dtype=target_ids.dtype, device=target_ids.device)
-            tgt_in = torch.cat([bos_col, target_ids[:, :-1]], dim=1)  # Shift right
+            tgt_in_gold = torch.cat([bos_col, target_ids[:, :-1]], dim=1)  # Ground truth shifted
             tgt_out = target_ids  # Ground truth
-
-            tgt_padding_mask = (tgt_in == self.vocab.pad_token_id)
 
             # Mixed precision training (BF16 for A100)
             with torch.cuda.amp.autocast(enabled=self.use_amp, dtype=torch.bfloat16):
-                # Forward pass with CORRECT target shift
+                # SCHEDULED SAMPLING: Mix ground truth with model predictions
+                import random
+                use_teacher_forcing = random.random() < teacher_forcing_ratio
+
+                if use_teacher_forcing or self.current_epoch < 3:
+                    # Early epochs or lucky roll: use ground truth (teacher forcing)
+                    tgt_in = tgt_in_gold
+                else:
+                    # Use model's own predictions (exposure to inference distribution)
+                    with torch.no_grad():
+                        # Get model predictions for previous step
+                        prev_outputs = self.model(
+                            input_ids,
+                            tgt_in_gold,
+                            src_padding_mask,
+                            (tgt_in_gold == self.vocab.pad_token_id)
+                        )
+                        # Sample from model (not greedy - use prev token predictions)
+                        prev_preds = prev_outputs.argmax(dim=-1)  # [batch, tgt_len]
+                        # Create decoder input from predictions
+                        tgt_in = torch.cat([bos_col, prev_preds[:, :-1]], dim=1)
+
+                tgt_padding_mask = (tgt_in == self.vocab.pad_token_id)
+
+                # Forward pass with scheduled decoder input
                 outputs = self.model(
                     input_ids,           # [batch, src_len]
-                    tgt_in,              # [batch, tgt_len] - decoder input with BOS
+                    tgt_in,              # [batch, tgt_len] - mixed gold/predicted
                     src_padding_mask,    # [batch, src_len]
                     tgt_padding_mask     # [batch, tgt_len]
                 )
                 # outputs: [batch, tgt_len, vocab_size]
 
-                # Loss: predict tgt_out from model outputs
-                # No shifting needed - already aligned!
+                # Loss: always predict ground truth tgt_out
                 loss = self.criterion(
                     outputs.contiguous().view(-1, outputs.size(-1)),
                     tgt_out.contiguous().view(-1)
@@ -189,7 +214,10 @@ class HybridTrainer:
 
         avg_loss = total_loss / num_batches
 
-        return {'loss': avg_loss}
+        return {
+            'loss': avg_loss,
+            'teacher_forcing_ratio': teacher_forcing_ratio
+        }
 
     @torch.no_grad()
     def validate(self) -> Dict[str, float]:
@@ -262,10 +290,92 @@ class HybridTrainer:
             progress_bar.set_postfix({'loss': f'{loss.item():.3f}'})
 
         avg_loss = total_loss / num_batches
-        metrics = self.val_metrics.compute()
-        metrics['loss'] = avg_loss
+        metrics_teacher = self.val_metrics.compute()
+        metrics_teacher['loss'] = avg_loss
 
-        return metrics
+        # CRITICAL: Also compute autoregressive CER (true inference metric)
+        # Sample 20 examples for autoregressive validation
+        autoregressive_cer = self._validate_autoregressive(num_samples=min(20, len(self.val_loader.dataset)))
+        metrics_teacher['cer_autoregressive'] = autoregressive_cer
+
+        return metrics_teacher
+
+    @torch.no_grad()
+    def _validate_autoregressive(self, num_samples: int = 20) -> float:
+        """
+        Validate using autoregressive decode (same as inference).
+
+        This gives the TRUE performance metric, not teacher-forced CER.
+        """
+        from training.metrics import character_error_rate
+
+        self.model.eval()
+        total_cer = 0.0
+        samples_evaluated = 0
+
+        # Sample from validation set
+        import random
+        indices = random.sample(range(len(self.val_loader.dataset)), min(num_samples, len(self.val_loader.dataset)))
+
+        for idx in indices:
+            sample = self.val_loader.dataset[idx]
+            input_ids = sample['input_ids'].unsqueeze(0).to(self.device)
+            target_ids = sample['target_ids']
+
+            # Decode target
+            target_text = self.vocab.decode(target_ids.tolist(), skip_special_tokens=True)
+
+            # Autoregressive generation (same as inference)
+            pred_text = self._predict_autoregressive(input_ids, max_length=512)
+
+            # Compute CER
+            cer = character_error_rate(pred_text, target_text)
+            total_cer += cer
+            samples_evaluated += 1
+
+        return total_cer / samples_evaluated if samples_evaluated > 0 else 1.0
+
+    def _predict_autoregressive(self, input_ids: torch.Tensor, max_length: int = 512, repetition_penalty: float = 1.2) -> str:
+        """
+        Autoregressive prediction (matches evaluate_model.py logic).
+        """
+        BOS = self.vocab.start_token_id
+        EOS = self.vocab.end_token_id
+        y = torch.tensor([[BOS]], dtype=torch.long, device=self.device)
+
+        src_padding_mask = (input_ids == self.vocab.pad_token_id)
+
+        for step in range(max_length):
+            tgt_padding_mask = (y == self.vocab.pad_token_id)
+
+            outputs = self.model(input_ids, y, src_padding_mask, tgt_padding_mask)
+            next_logits = outputs[0, -1, :].clone()
+
+            # Repetition penalty
+            if y.size(1) > 1:
+                for tok in y[0, -min(20, y.size(1)):].tolist():
+                    if tok not in [self.vocab.pad_token_id, BOS, EOS]:
+                        next_logits[tok] /= repetition_penalty
+
+            # Top-2 sampling
+            top2_logits, top2_indices = next_logits.topk(2)
+            next_token = top2_indices[0].item()
+
+            # Triple-repeat guard
+            if y.size(1) >= 2:
+                if next_token == y[0, -1].item() == y[0, -2].item():
+                    next_token = top2_indices[1].item()
+
+            # Stop conditions
+            if EOS is not None and next_token == EOS:
+                break
+            if next_token == self.vocab.pad_token_id:
+                break
+
+            y = torch.cat([y, torch.tensor([[next_token]], dtype=torch.long, device=self.device)], dim=1)
+
+        pred_ids = y[0, 1:].tolist()
+        return self.vocab.decode(pred_ids, skip_special_tokens=True)
 
     def save_checkpoint(self, metrics: Dict[str, float], is_best: bool = False):
         """Save model checkpoint."""
