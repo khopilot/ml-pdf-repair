@@ -50,8 +50,26 @@ tests/
 .DS_Store
 Thumbs.db
 
-# Large datasets (optional - uncomment if not needed)
-# data/training_pairs_*/
+# Old datasets (exclude from Docker - only keep mega_3279p)
+data/training_pairs_combined_257p/
+data/training_pairs_combined_257p_enhanced/
+data/training_pairs_gold_standard_200p/
+data/training_pairs_gold_standard_200p_enhanced/
+data/training_pairs_forensic_*/
+data/training_pairs_khmer_*/
+data/training_pairs_mega_331p/
+data/training_pairs_mega_331p_enhanced/
+data/training_pairs_mega_331p_filtered/
+data/training_pairs_ams_2558p/
+data/paired_3k+/
+data/phearun-data/
+
+# Analysis and migration scripts (not needed in production)
+data/analyze_*.py
+data/MIGRATION_*.md
+data/COMPLETE_*.py
+data/ENHANCED_FORMAT_README.md
+data/FINAL_SUMMARY.txt
 
 # Virtual environments
 venv/

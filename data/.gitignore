@@ -1,0 +1,20 @@
+# Exclude old datasets from git (too large, superseded by mega_3279p)
+training_pairs_combined_257p/
+training_pairs_combined_257p_enhanced/
+training_pairs_gold_standard_200p/
+training_pairs_gold_standard_200p_enhanced/
+training_pairs_forensic_*/
+training_pairs_khmer_*/
+training_pairs_mega_331p/
+training_pairs_mega_331p_enhanced/
+training_pairs_mega_331p_filtered/
+training_pairs_ams_2558p/
+paired_3k+/
+phearun-data/
+
+# Analysis and migration files
+analyze_*.py
+MIGRATION_*.md
+COMPLETE_*.py
+ENHANCED_FORMAT_README.md
+FINAL_SUMMARY.txt

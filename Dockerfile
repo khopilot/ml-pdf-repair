@@ -136,8 +136,9 @@ ENTRYPOINT_EOF
 RUN chmod +x /app/entrypoint.sh
 
 # Default training parameters (override via environment variables or Northflank UI)
-ENV DATA_DIR="data/phearun_2483" \
-    OUTPUT_DIR="/root/.cache/runs/phearun_2483_training" \
+# UPDATED: Now using mega_3279p dataset (2,825 pairs, de-duplicated, enhanced metadata)
+ENV DATA_DIR="data/training_pairs_mega_3279p" \
+    OUTPUT_DIR="/root/.cache/runs/mega_3279p_training" \
     BATCH_SIZE="16" \
     EPOCHS="50" \
     LEARNING_RATE="1e-4" \

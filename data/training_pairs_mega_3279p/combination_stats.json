@@ -1,0 +1,26 @@
+{
+  "total_pairs": 2825,
+  "duplicates_removed": 454,
+  "by_source": {
+    "training_pairs_gold_standard_200p_enhanced": {
+      "train": 161,
+      "val": 19,
+      "test": 19
+    },
+    "training_pairs_combined_257p_enhanced": {
+      "train": 198,
+      "val": 21,
+      "test": 38
+    },
+    "training_pairs_mega_331p_filtered": {
+      "train": 208,
+      "val": 22,
+      "test": 39
+    },
+    "training_pairs_ams_2558p": {
+      "train": 2043,
+      "val": 255,
+      "test": 256
+    }
+  }
+}

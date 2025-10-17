@@ -46,22 +46,42 @@ class DatasetCombiner:
 
     @staticmethod
     def normalize_pair_format(pair: Dict) -> Dict:
-        """Normalize pair to use 'input' and 'target' keys."""
+        """Normalize pair to use 'input' and 'target' keys, PRESERVE ALL METADATA."""
         # If using old format (input_text/target_text), convert to new format
         if "input_text" in pair:
-            return {
+            # Convert to enhanced format, preserving all existing fields
+            normalized = {
                 "input": pair["input_text"],
                 "target": pair["target_text"],
-                "metadata": {
+                "lang": pair.get("lang", "km"),
+                "metadata": pair.get("metadata", {}),
+                "split": pair.get("split", "train")
+            }
+
+            # Migrate old top-level fields to metadata if not already there
+            if not normalized["metadata"]:
+                normalized["metadata"] = {
                     "page_num": pair.get("page_num"),
                     "pdf_name": pair.get("pdf_name"),
                     "method": pair.get("method"),
                     "cer": pair.get("cer"),
                     "input_length": pair.get("input_length"),
-                    "target_length": pair.get("target_length")
+                    "target_length": pair.get("target_length"),
+                    "input_khmer_ratio": pair.get("input_khmer_ratio"),
+                    "target_khmer_ratio": pair.get("target_khmer_ratio"),
+                    "has_pua": pair.get("has_pua", False)
                 }
-            }
-        # Already in new format
+
+            return normalized
+
+        # Already in new format, ensure all required fields
+        if "lang" not in pair:
+            pair["lang"] = "km"
+        if "metadata" not in pair:
+            pair["metadata"] = {}
+        if "split" not in pair:
+            pair["split"] = "train"
+
         return pair
 
     def load_dataset(self, dataset_dir: Path, split: str) -> List[Dict]:
